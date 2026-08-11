@@ -8,7 +8,6 @@ export default function ProtectedRoute() {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
 
   useEffect(() => {
-    // This listens to Firebase. It fires automatically when someone logs in or out.
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setIsAuthenticated(!!user);
     });
@@ -16,7 +15,6 @@ export default function ProtectedRoute() {
     return () => unsubscribe(); // Cleanup listener
   }, []);
 
-  // Show a loading spinner while we check Firebase
   if (isAuthenticated === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
@@ -25,6 +23,5 @@ export default function ProtectedRoute() {
     );
   }
 
-  // If logged in, show the Dashboard Layout. If not, kick to /login
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 }

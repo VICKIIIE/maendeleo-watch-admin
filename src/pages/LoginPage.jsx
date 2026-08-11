@@ -20,7 +20,6 @@ export default function LoginPage() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Perfect path routing right to the root dashboard
       navigate("/"); 
     } catch (err) {
       console.error("Firebase Login Error:", err.code);

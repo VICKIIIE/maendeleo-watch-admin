@@ -1,6 +1,6 @@
 import React from "react";
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
-import { FolderKanban, LayoutDashboard, FileText, Users, Settings, LogOut } from "lucide-react";
+import { FolderKanban, LayoutDashboard, FileText, Users, Settings, LogOut, ShieldCheck } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
 
@@ -22,6 +22,7 @@ export default function AdminLayout() {
     { name: "Projects", path: "/projects", icon: FolderKanban },
     { name: "Reports", path: "/reports", icon: FileText },
     { name: "Users", path: "/users", icon: Users },
+    { name: "Moderation", path: "/moderation", icon: ShieldCheck },
   ];
 
   return (

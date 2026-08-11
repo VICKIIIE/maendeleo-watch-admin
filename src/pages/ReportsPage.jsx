@@ -1,56 +1,119 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, Filter, AlertTriangle, CheckCircle2, Clock, X, MessageSquare, ShieldAlert, MapPin, Calendar, ExternalLink, ChevronDown, Download, UserCheck } from "lucide-react";
+import api from '../api'; // 🌟 Importing your configured Axios instance
 
 export default function ReportsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All"); 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  
+  const [reports, setReports] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 🌟 UPGRADED DATA: Added 'auditor' field to track who is on the job
-  const [reports, setReports] = useState([
-    { id: "RPT-842", project: "Nairobi Expressway Extension", location: "Exit 4, Westlands", issue: "Severe structural cracking on pillar 12.", citizen: "Anonymous", status: "Investigating", urgency: "Critical", date: "Jul 2, 2026", description: "I drive past this pillar every day and the crack has widened significantly over the last week. Concrete chunks are falling onto the lower road.", auditor: "Sarah K." },
-    { id: "RPT-843", project: "Kisumu Water & Sanitation", location: "Nyalenda Estate", issue: "No water supply for 4 days.", citizen: "Jane O.", status: "Resolved", urgency: "Medium", date: "Jun 28, 2026", description: "The new pipes were installed but our sector has not received a single drop of water since Thursday. The contractor left open trenches everywhere.", auditor: "David M." },
-    { id: "RPT-844", project: "Mombasa Port Expansion Phase 2", location: "Dock B", issue: "Suspected material theft", citizen: "Anonymous", status: "Pending", urgency: "High", date: "Jul 4, 2026", description: "Trucks without official KPA branding are loading cement bags late at night (around 2 AM) from the main storage site.", auditor: null },
-    { id: "RPT-845", project: "Eldoret Bypass Road", location: "Kapsabet Junction", issue: "Poor drainage causing flooding", citizen: "David K.", status: "Pending", urgency: "Medium", date: "Jul 3, 2026", description: "The road elevation is pushing all rainwater directly into the adjacent shops. Three businesses have flooded so far.", auditor: null },
-  ]);
+  const fetchAudits = async () => { 
+    try {
+      setIsLoading(true);
+      const response = await api.get('/audits');
+      const rawData = response.data.data || response.data || [];
+      
+      const mappedReports = rawData.map(audit => ({
+        ...audit,
+        id: audit.id,
+        project: audit.project_id || "Unknown Project",
+        // Combine GPS into the "location" string your UI expects
+        location: (audit.gps_latitude && audit.gps_longitude) 
+            ? `${audit.gps_latitude}, ${audit.gps_longitude}` 
+            : "No GPS coordinates provided",
+        issue: audit.ground_status || "General Report",
+        description: audit.comments || "No citizen narrative provided.",
+        status: audit.verification_status || "Pending",
+        urgency: "Medium",
+        date: audit.created_at
+      }));
 
-  // 🌟 UPGRADED: Assign Auditor now saves the name!
-  const handleAssignAuditor = () => {
-    const auditorName = window.prompt("Enter the name of the Auditor to assign:");
-    if (auditorName) {
-      const updatedReports = reports.map(r => 
-        r.id === selectedReport.id ? { ...r, status: "Investigating", auditor: auditorName } : r
-      );
-      setReports(updatedReports);
-      setSelectedReport({ ...selectedReport, status: "Investigating", auditor: auditorName });
+      setReports(mappedReports);
+    } catch (error) {
+      console.error("Failed to fetch reports:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleMarkResolved = () => {
-    const updatedReports = reports.map(r => 
-      r.id === selectedReport.id ? { ...r, status: "Resolved" } : r
-    );
-    setReports(updatedReports);
-    setSelectedReport({ ...selectedReport, status: "Resolved" });
+  useEffect(() => {
+    fetchAudits(); 
+  }, []); 
+
+  const handleAssignAuditor = async () => {
+    const auditorName = window.prompt("Enter the name of the Auditor to assign:");
+    if (!auditorName) return;
+
+    try {
+      const reportId = selectedReport.id || selectedReport.report_id;
+      
+      const updatePayload = {
+        verification_status: "Investigating"
+      };
+
+      await api.put(`/audits/${reportId}`, updatePayload);
+
+      const updatedAudit = { 
+        ...selectedReport, 
+        status: "Investigating", // UI uses 'status'
+        auditor: auditorName 
+      };
+      
+      setSelectedReport(updatedAudit);
+      setReports(reports.map(r => (r.id === reportId || r.report_id === reportId) ? updatedAudit : r));
+      
+    } catch (error) {
+      console.error("Failed to assign auditor:", error);
+      alert("Error saving to database. Check connection.");
+    }
   };
 
-  // 🌟 NEW: Real CSV Export Function
+  const handleMarkResolved = async () => {
+    try {
+      const reportId = selectedReport.id || selectedReport.report_id;
+      
+      await api.put(`/audits/${reportId}`, { 
+        verification_status: "Resolved" 
+      });
+
+      const updatedReport = { ...selectedReport, status: "Resolved" };
+      setSelectedReport(updatedReport);
+      setReports(reports.map(r => (r.id === reportId || r.report_id === reportId) ? updatedReport : r));
+      
+    } catch (error) {
+      console.error("Failed to resolve report:", error);
+      alert("Error saving to database. Check connection.");
+    }
+  };
+
   const handleExportCSV = () => {
-    // 1. Create the column headers
+    if (reports.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
+
     const headers = ["Report ID", "Project", "Location", "Issue", "Urgency", "Status", "Assigned Auditor", "Date Submitted"];
     
-    // 2. Map the data into rows
     const csvRows = reports.map(r => 
-      [r.id, r.project, r.location, r.issue, r.urgency, r.status, r.auditor || "Unassigned", r.date]
-        .map(field => `"${field}"`) // Wrap fields in quotes to prevent comma issues
+      [
+        r.id || r.report_id, 
+        r.project || r.project_name, 
+        r.location, 
+        r.issue, 
+        r.urgency, 
+        r.status, 
+        r.auditor || "Unassigned", 
+        r.date || r.created_at ? new Date(r.date || r.created_at).toLocaleDateString() : 'N/A'
+      ]
+        .map(field => `"${field || ''}"`) // Wrap fields in quotes, handle nulls
         .join(",")
     );
 
-    // 3. Combine headers and rows
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...csvRows].join("\n");
-    
-    // 4. Trigger the download
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -61,9 +124,15 @@ export default function ReportsPage() {
   };
 
   const filteredReports = reports.filter((r) => {
-    const matchesSearch = r.project.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          r.issue.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          r.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const search = searchTerm.toLowerCase();
+    const safeProject = r.project || r.project_name || "";
+    const safeIssue = r.issue || "";
+    const safeId = r.id || r.report_id || "";
+    
+    const matchesSearch = safeProject.toLowerCase().includes(search) || 
+                          safeIssue.toLowerCase().includes(search) || 
+                          String(safeId).toLowerCase().includes(search);
+                          
     const matchesStatus = statusFilter === "All" || r.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -95,7 +164,6 @@ export default function ReportsPage() {
           <p className="text-sm text-slate-500 mt-1">Review, assign, and resolve community-submitted infrastructure feedback.</p>
         </div>
         
-        {/* 🌟 WIRED: Export CSV Button */}
         <button 
           onClick={handleExportCSV}
           className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition shadow-sm flex items-center gap-2"
@@ -136,23 +204,41 @@ export default function ReportsPage() {
                 <th className="px-6 py-4 font-semibold">Reported Issue</th>
                 <th className="px-6 py-4 font-semibold">Urgency</th>
                 <th className="px-6 py-4 font-semibold">Status</th>
+                <th className="px-6 py-4 font-semibold">Photo</th>
                 <th className="px-6 py-4 font-semibold text-right">Date Submitted</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filteredReports.length === 0 ? (
+              {isLoading ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-slate-500">No reports found matching your search criteria.</td>
+                  <td colSpan="7" className="px-6 py-10 text-center text-slate-500 font-medium">Loading reports from database...</td>
+                </tr>
+              ) : filteredReports.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-6 py-10 text-center text-slate-500">No reports found matching your search criteria.</td>
                 </tr>
               ) : (
                 filteredReports.map((report) => (
-                  <tr key={report.id} onClick={() => setSelectedReport(report)} className="hover:bg-slate-50 transition cursor-pointer">
-                    <td className="px-6 py-4 text-slate-500 font-mono text-xs">{report.id}</td>
-                    <td className="px-6 py-4 font-medium text-slate-900">{report.project}</td>
+                  <tr key={report.id || report.report_id} onClick={() => setSelectedReport(report)} className="hover:bg-slate-50 transition cursor-pointer">
+                    <td className="px-6 py-4 text-slate-500 font-mono text-xs">{String(report.id || report.report_id).substring(0,8)}...</td>
+                    <td className="px-6 py-4 font-medium text-slate-900">{report.project || report.project_name}</td>
                     <td className="px-6 py-4 text-slate-600 truncate max-w-[200px]">{report.issue}</td>
                     <td className="px-6 py-4">{getUrgencyBadge(report.urgency)}</td>
                     <td className="px-6 py-4">{getStatusBadge(report.status)}</td>
-                    <td className="px-6 py-4 text-slate-500 text-right">{report.date}</td>
+                    <td className="px-6 py-4">
+                      {report.image_url ? (
+                        <a href={report.image_url} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={report.image_url}
+                            alt="Ground Evidence"
+                            style={{ width: "60px", height: "60px", borderRadius: "8px", objectFit: "cover" }}
+                          />
+                        </a>
+                      ) : (
+                        <span style={{ color: "#94A3B8", fontSize: "12px" }}>No Photo</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500 text-right">{report.date || (report.created_at ? new Date(report.created_at).toLocaleDateString() : 'N/A')}</td>
                   </tr>
                 ))
               )}
@@ -169,7 +255,7 @@ export default function ReportsPage() {
             <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <p className="text-xs font-mono text-slate-500">{selectedReport.id}</p>
+                  <p className="text-xs font-mono text-slate-500">{selectedReport.id || selectedReport.report_id}</p>
                   {getUrgencyBadge(selectedReport.urgency)}
                 </div>
                 <h2 className="text-xl font-bold text-slate-900 leading-tight">{selectedReport.issue}</h2>
@@ -182,11 +268,28 @@ export default function ReportsPage() {
             <div className="p-6 flex-1 overflow-y-auto space-y-6">
               
               <div className="space-y-4">
-                <div className="flex items-start gap-3"><ExternalLink className="w-5 h-5 text-slate-400 mt-0.5" /><div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Related Project</p><p className="text-sm font-medium text-emerald-600 hover:underline cursor-pointer">{selectedReport.project}</p></div></div>
-                <div className="flex items-start gap-3"><MapPin className="w-5 h-5 text-slate-400 mt-0.5" /><div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Specific Location</p><p className="text-sm text-slate-900">{selectedReport.location}</p></div></div>
-                <div className="flex items-start gap-3"><Calendar className="w-5 h-5 text-slate-400 mt-0.5" /><div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Submitted On</p><p className="text-sm text-slate-900">{selectedReport.date} by <span className="font-medium">{selectedReport.citizen}</span></p></div></div>
+                <div className="flex items-start gap-3">
+                  <ExternalLink className="w-5 h-5 text-slate-400 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Related Project</p>
+                    <p className="text-sm font-medium text-emerald-600 hover:underline cursor-pointer">{selectedReport.project || selectedReport.project_name}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-5 h-5 text-slate-400 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Specific Location</p>
+                    <p className="text-sm text-slate-900">{selectedReport.location}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 text-slate-400 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Submitted On</p>
+                    <p className="text-sm text-slate-900">{selectedReport.date || (selectedReport.created_at ? new Date(selectedReport.created_at).toLocaleDateString() : 'N/A')} by <span className="font-medium">{selectedReport.citizen || 'Anonymous'}</span></p>
+                  </div>
+                </div>
                 
-                {/* 🌟 NEW: Shows the Assigned Auditor if one exists */}
                 {selectedReport.auditor && (
                   <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100 mt-2">
                     <UserCheck className="w-5 h-5 text-blue-600 mt-0.5" />
@@ -210,7 +313,6 @@ export default function ReportsPage() {
                 <p className="text-xs text-slate-400 mb-4">Current Status: <span className="font-semibold text-white">{selectedReport.status}</span></p>
                 <div className="grid grid-cols-2 gap-2">
                   
-                  {/* 🌟 UPGRADED: Button text changes based on if an auditor is already assigned */}
                   <button 
                     onClick={handleAssignAuditor} 
                     disabled={selectedReport.status === "Resolved"} 
