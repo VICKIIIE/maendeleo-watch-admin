@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, MoreVertical, AlertTriangle, CheckCircle2, Clock, X, Edit, Trash2, MapPin, DollarSign, Activity } from "lucide-react";
+import { Plus, Search, MoreVertical, AlertTriangle, CheckCircle2, Clock, X, Edit, Trash2, MapPin, DollarSign, Activity, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from '../api';
+import { generatePDF } from '../utils/generatePDF';
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -115,6 +116,25 @@ export default function ProjectsPage() {
     return matchSearch && matchStatus;
   });
 
+  const handleExportPDF = () => {
+    if (filteredProjects.length === 0) {
+      alert("No projects available to export.");
+      return;
+    }
+
+    generatePDF(
+      "Maendeleo Projects Report",
+      [
+        { header: "ID", key: "id", format: (project) => project.id?.substring(0, 8) || "N/A" },
+        { header: "Project Name", key: "name" },
+        { header: "Location", key: "county" },
+        { header: "Status", key: "status" },
+      ],
+      filteredProjects,
+      "maendeleo_projects_report"
+    );
+  };
+
   const getStatusBadge = (status) => {
     switch (status?.toLowerCase()) {
       case "active": return <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium flex items-center gap-1 w-max"><Clock className="w-3 h-3"/> Active</span>;
@@ -179,9 +199,14 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Project Database</h1>
           <p className="text-sm text-slate-500 mt-1">Manage and monitor all national infrastructure projects.</p>
         </div>
-        <button onClick={() => { setEditingId(null); setFormData({ name: "", county_id: "", constituency_id: "", budget: "", lat: "", lng: "" }); setConstituenciesList([]); setIsModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm">
-          <Plus className="w-4 h-4" /> Add New Project
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button onClick={handleExportPDF} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition shadow-sm flex items-center gap-2">
+            <Download className="w-4 h-4" /> Export PDF
+          </button>
+          <button onClick={() => { setEditingId(null); setFormData({ name: "", county_id: "", constituency_id: "", budget: "", lat: "", lng: "" }); setConstituenciesList([]); setIsModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm">
+            <Plus className="w-4 h-4" /> Add New Project
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 justify-between">

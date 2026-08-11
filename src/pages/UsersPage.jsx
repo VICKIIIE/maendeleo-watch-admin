@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { X, MoreVertical, Shield, UserCheck, User, ShieldAlert, CheckCircle2, XCircle, Mail, Activity, Calendar, Loader2, ArrowRightLeft } from "lucide-react";
+import { X, MoreVertical, Shield, UserCheck, User, ShieldAlert, CheckCircle2, XCircle, Mail, Activity, Calendar, Loader2, ArrowRightLeft, Download } from "lucide-react";
 import axios from "axios";
+import { generatePDF } from '../utils/generatePDF';
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -98,6 +99,26 @@ export default function UsersPage() {
       : <span className="flex items-center gap-1 text-red-500 text-sm font-medium"><XCircle className="w-4 h-4" /> Suspended</span>;
   };
 
+  const handleExportPDF = () => {
+    if (users.length === 0) {
+      alert("No users available to export.");
+      return;
+    }
+
+    generatePDF(
+      "Maendeleo System Users",
+      [
+        { header: "Name", key: "name" },
+        { header: "Email", key: "email" },
+        { header: "Role", key: "role" },
+        { header: "Status", key: "status" },
+        { header: "Last Login", key: "lastLogin" },
+      ],
+      users,
+      "maendeleo_system_users"
+    );
+  };
+
   return (
     <div className="space-y-6 relative h-full" onClick={() => { setActiveMenuId(null); setShowRoleSelector(false); }}>
       
@@ -107,6 +128,12 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System Users</h1>
           <p className="text-sm text-slate-500 mt-1">Manage administrator access, field agents, and auditors.</p>
         </div>
+        <button 
+          onClick={handleExportPDF}
+          className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm"
+        >
+          <Download className="w-4 h-4" /> Export PDF
+        </button>
       </div>
 
       {error && (

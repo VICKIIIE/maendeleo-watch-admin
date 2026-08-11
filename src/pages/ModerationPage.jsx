@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Download } from 'lucide-react';
+import { generatePDF } from '../utils/generatePDF';
 
 
 const ModerationPage = () => {
@@ -50,11 +52,40 @@ const ModerationPage = () => {
         }
     };
 
+    const handleExportPDF = () => {
+        if (pendingAudits.length === 0) {
+            alert("No pending audits to export.");
+            return;
+        }
+
+        generatePDF(
+            "Maendeleo Moderation Queue",
+            [
+                { header: "Project", key: "project_name" },
+                { header: "User ID", key: "user_id" },
+                { header: "Ground Status", key: "ground_status" },
+                { header: "Progress", key: "progress_estimate", format: (audit) => `${audit.progress_estimate ?? "N/A"}%` },
+                { header: "Quality", key: "quality_assessment" },
+                { header: "Safety", key: "safety_assessment" },
+            ],
+            pendingAudits,
+            "maendeleo_moderation_queue"
+        );
+    };
+
     if (loading) return <div className="p-6 text-gray-500">Loading pending reports...</div>;
 
     return (
         <div className="p-6 max-w-6xl mx-auto">
-            <h1 className="text-3xl font-bold mb-6 text-gray-800">Moderation Queue</h1>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <h1 className="text-3xl font-bold text-gray-800">Moderation Queue</h1>
+                <button
+                    onClick={handleExportPDF}
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition shadow-sm"
+                >
+                    <Download className="w-4 h-4" /> Export PDF
+                </button>
+            </div>
             
             {pendingAudits.length === 0 ? (
                 <div className="bg-green-100 text-green-700 p-4 rounded-lg">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Activity, Search, Download } from "lucide-react";
 import api from '../api'; 
+import { generatePDF } from '../utils/generatePDF';
 
 export default function SystemLogsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -57,6 +58,26 @@ export default function SystemLogsPage() {
     document.body.removeChild(link);
   };
 
+  const handleExportPDF = () => {
+    if (filteredLogs.length === 0) {
+      alert("No data to export!");
+      return;
+    }
+
+    generatePDF(
+      "Maendeleo System Audit Logs",
+      [
+        { header: "Log ID", key: "id", format: (log) => String(log.id || log.log_id || "") },
+        { header: "Timestamp", key: "date", format: (log) => log.date || log.created_at || "N/A" },
+        { header: "User", key: "user", format: (log) => log.user || log.user_email || "" },
+        { header: "Action", key: "action" },
+        { header: "Target", key: "target" },
+      ],
+      filteredLogs,
+      "maendeleo_system_logs"
+    );
+  };
+
   return (
     <div className="space-y-6 h-full">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -67,12 +88,20 @@ export default function SystemLogsPage() {
           </h1>
           <p className="text-sm text-slate-500 mt-1">Immutable record of all database and user actions.</p>
         </div>
-        <button 
-          onClick={handleExportCSV}
-          className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm"
-        >
-          <Download className="w-4 h-4" /> Export CSV
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button 
+            onClick={handleExportPDF}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm"
+          >
+            <Download className="w-4 h-4" /> Export PDF
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 justify-between">

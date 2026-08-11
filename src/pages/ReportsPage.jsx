@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Search, Filter, AlertTriangle, CheckCircle2, Clock, X, MessageSquare, ShieldAlert, MapPin, Calendar, ExternalLink, ChevronDown, Download, UserCheck } from "lucide-react";
 import api from '../api'; // 🌟 Importing your configured Axios instance
+import { generatePDF } from '../utils/generatePDF';
 
 export default function ReportsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -137,6 +138,28 @@ export default function ReportsPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const handleExportPDF = () => {
+    if (filteredReports.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
+
+    generatePDF(
+      "Maendeleo Citizen Reports",
+      [
+        { header: "Report ID", key: "id", format: (report) => String(report.id || report.report_id || "") },
+        { header: "Project", key: "project", format: (report) => report.project || report.project_name || "" },
+        { header: "Issue", key: "issue" },
+        { header: "Urgency", key: "urgency" },
+        { header: "Status", key: "status" },
+        { header: "Auditor", key: "auditor", format: (report) => report.auditor || "Unassigned" },
+        { header: "Date", key: "date", format: (report) => report.date || report.created_at || "N/A" },
+      ],
+      filteredReports,
+      "maendeleo_reports_log"
+    );
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case "Pending": return <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-medium flex items-center gap-1 w-max"><Clock className="w-3 h-3"/> Pending Review</span>;
@@ -164,13 +187,22 @@ export default function ReportsPage() {
           <p className="text-sm text-slate-500 mt-1">Review, assign, and resolve community-submitted infrastructure feedback.</p>
         </div>
         
-        <button 
-          onClick={handleExportCSV}
-          className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition shadow-sm flex items-center gap-2"
-        >
-          <Download className="w-4 h-4" />
-          Export Report Log
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={handleExportCSV}
+            className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition shadow-sm flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Export Report Log
+          </button>
+          <button 
+            onClick={handleExportPDF}
+            className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition shadow-sm flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Export PDF
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 justify-between">
