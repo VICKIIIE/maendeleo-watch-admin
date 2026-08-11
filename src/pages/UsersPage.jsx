@@ -2,8 +2,13 @@ import React, { useState, useEffect } from "react";
 import { X, MoreVertical, Shield, UserCheck, User, ShieldAlert, CheckCircle2, XCircle, Mail, Activity, Calendar, Loader2, ArrowRightLeft, Download } from "lucide-react";
 import axios from "axios";
 import { generatePDF } from '../utils/generatePDF';
+import { useAuth } from "../context/AuthContext";
+import { hasAnyRole, normalizeRole } from "../utils/rbac";
+import api from "../api";
 
 export default function UsersPage() {
+  const { role } = useAuth();
+  const canManageUsers = hasAnyRole(role, ["Super Admin"]);
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,7 +25,7 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('http://localhost:3000/api/users');
+      const response = await api.get('/users');
       
       if (response.data.success) {
         const formattedUsers = response.data.data.map(user => ({
@@ -52,7 +57,7 @@ export default function UsersPage() {
       const newStatus = targetUser.status === "Active" ? "Suspended" : "Active";
       
       // Hit the backend endpoint
-      await axios.patch(`http://localhost:3000/api/users/${id}/status`, { status: newStatus });
+      await api.patch(`/users/${id}/status`, { status: newStatus });
 
       // Update UI state
       setUsers(prev => prev.map(u => u.id === id ? { ...u, status: newStatus } : u));
@@ -68,9 +73,10 @@ export default function UsersPage() {
 
   // --- FULLY FUNCTIONAL ROLE CHANGE ACTION ---
   const changeUserRole = async (id, newRole) => {
+    if (!canManageUsers) return;
     try {
       // Hit the new backend endpoint
-      await axios.patch(`http://localhost:3000/api/users/${id}/role`, { role: newRole });
+      await api.patch(`/users/${id}/role`, { role: newRole });
 
       // Update UI state
       setUsers(prev => prev.map(u => u.id === id ? { ...u, role: newRole } : u));
@@ -85,10 +91,12 @@ export default function UsersPage() {
 
   // UI HELPERS
   const getRoleBadge = (role) => {
-    switch (role) {
+    switch (normalizeRole(role)) {
       case "Super Admin": return <span className="flex items-center gap-1.5 text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md text-xs font-semibold border border-purple-100 w-max"><Shield className="w-3.5 h-3.5" /> Super Admin</span>;
-      case "Auditor": return <span className="flex items-center gap-1.5 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md text-xs font-semibold border border-blue-100 w-max"><UserCheck className="w-3.5 h-3.5" /> Auditor</span>;
+      case "Investigator": return <span className="flex items-center gap-1.5 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md text-xs font-semibold border border-blue-100 w-max"><UserCheck className="w-3.5 h-3.5" /> Investigator</span>;
       case "Field Agent": return <span className="flex items-center gap-1.5 text-orange-700 bg-orange-50 px-2.5 py-1 rounded-md text-xs font-semibold border border-orange-100 w-max"><Activity className="w-3.5 h-3.5" /> Field Agent</span>;
+      case "Project Manager": return <span className="flex items-center gap-1.5 text-cyan-700 bg-cyan-50 px-2.5 py-1 rounded-md text-xs font-semibold border border-cyan-100 w-max"><UserCheck className="w-3.5 h-3.5" /> Project Manager</span>;
+      case "Moderator": return <span className="flex items-center gap-1.5 text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md text-xs font-semibold border border-rose-100 w-max"><ShieldAlert className="w-3.5 h-3.5" /> Moderator</span>;
       default: return <span className="flex items-center gap-1.5 text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md text-xs font-semibold border border-slate-200 w-max"><User className="w-3.5 h-3.5" /> {role || 'Citizen'}</span>;
     }
   };
@@ -128,12 +136,22 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System Users</h1>
           <p className="text-sm text-slate-500 mt-1">Manage administrator access, field agents, and auditors.</p>
         </div>
-        <button 
-          onClick={handleExportPDF}
-          className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm"
-        >
-          <Download className="w-4 h-4" /> Export PDF
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={handleExportPDF}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm"
+          >
+            <Download className="w-4 h-4" /> Export PDF
+          </button>
+          {canManageUsers && (
+            <button 
+              onClick={() => setShowRoleSelector(false)}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm"
+            >
+              <ArrowRightLeft className="w-4 h-4" /> Manage Roles
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -187,15 +205,17 @@ export default function UsersPage() {
                     <td className="px-6 py-4">{getRoleBadge(user.role)}</td>
                     <td className="px-6 py-4">{getStatusBadge(user.status)}</td>
                     <td className="px-6 py-4 text-right relative">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === user.id ? null : user.id); }} 
-                        className="text-slate-400 hover:text-slate-900 p-2 rounded-lg hover:bg-slate-100 transition"
-                      >
-                        <MoreVertical className="w-5 h-5" />
-                      </button>
+                      {canManageUsers && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === user.id ? null : user.id); }} 
+                          className="text-slate-400 hover:text-slate-900 p-2 rounded-lg hover:bg-slate-100 transition"
+                        >
+                          <MoreVertical className="w-5 h-5" />
+                        </button>
+                      )}
                       
                       {/* QUICK ACTION MENU */}
-                      {activeMenuId === user.id && (
+                      {canManageUsers && activeMenuId === user.id && (
                         <div className="absolute right-8 top-12 w-48 bg-white border border-slate-200 shadow-lg rounded-xl overflow-hidden z-10">
                           <button 
                             onClick={(e) => { e.stopPropagation(); toggleSuspendUser(user.id); }} 
@@ -251,17 +271,23 @@ export default function UsersPage() {
                   
                   {/* BUTTON 1: ROLE CHANGE */}
                   <div className="relative">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setShowRoleSelector(!showRoleSelector); }}
-                      className="w-full py-2.5 px-3 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 bg-white/10 text-white hover:bg-white/20"
-                    >
-                      <ArrowRightLeft className="w-4 h-4" /> Change System Role
-                    </button>
+                    {canManageUsers ? (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setShowRoleSelector(!showRoleSelector); }}
+                        className="w-full py-2.5 px-3 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 bg-white/10 text-white hover:bg-white/20"
+                      >
+                        <ArrowRightLeft className="w-4 h-4" /> Change System Role
+                      </button>
+                    ) : (
+                      <div className="w-full py-2.5 px-3 rounded-lg text-sm font-medium flex items-center justify-center gap-2 bg-white/5 text-slate-400">
+                        Read-only account details
+                      </div>
+                    )}
                     
                     {/* ROLE SELECTOR DROPDOWN */}
-                    {showRoleSelector && (
+                    {canManageUsers && showRoleSelector && (
                       <div className="mt-2 bg-slate-800 rounded-lg p-2 flex flex-col gap-1 border border-slate-700" onClick={(e) => e.stopPropagation()}>
-                        {["Citizen", "Field Agent", "Auditor", "Super Admin"].map((roleOption) => (
+                        {["Citizen", "Field Agent", "Project Manager", "Moderator", "Investigator", "Super Admin"].map((roleOption) => (
                           <button
                             key={roleOption}
                             disabled={selectedUser.role === roleOption}
@@ -280,15 +306,21 @@ export default function UsersPage() {
                   </div>
 
                   {/* BUTTON 2: SUSPEND/REACTIVATE */}
-                  <button 
-                    onClick={() => toggleSuspendUser(selectedUser.id)}
-                    className={`w-full py-2.5 px-3 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 ${
-                      selectedUser.status === 'Active' ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                    }`}
-                  >
-                    <ShieldAlert className="w-4 h-4" /> 
-                    {selectedUser.status === 'Active' ? 'Suspend Account Access' : 'Reactivate Account'}
-                  </button>
+                  {canManageUsers ? (
+                    <button 
+                      onClick={() => toggleSuspendUser(selectedUser.id)}
+                      className={`w-full py-2.5 px-3 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 ${
+                        selectedUser.status === 'Active' ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                      }`}
+                    >
+                      <ShieldAlert className="w-4 h-4" /> 
+                      {selectedUser.status === 'Active' ? 'Suspend Account Access' : 'Reactivate Account'}
+                    </button>
+                  ) : (
+                    <div className="w-full py-2.5 px-3 rounded-lg text-sm font-medium flex items-center justify-center gap-2 bg-white/5 text-slate-400">
+                      Suspension disabled for your role
+                    </div>
+                  )}
 
                 </div>
               </div>

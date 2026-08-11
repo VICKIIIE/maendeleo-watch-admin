@@ -2,8 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Search, Filter, AlertTriangle, CheckCircle2, Clock, X, MessageSquare, ShieldAlert, MapPin, Calendar, ExternalLink, ChevronDown, Download, UserCheck } from "lucide-react";
 import api from '../api'; // 🌟 Importing your configured Axios instance
 import { generatePDF } from '../utils/generatePDF';
+import { useAuth } from "../context/AuthContext";
+import { hasAnyRole } from "../utils/rbac";
 
 export default function ReportsPage() {
+  const { role } = useAuth();
+  const canModerateReports = hasAnyRole(role, ["Super Admin", "Moderator"]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All"); 
@@ -46,6 +50,7 @@ export default function ReportsPage() {
   }, []); 
 
   const handleAssignAuditor = async () => {
+    if (!canModerateReports) return;
     const auditorName = window.prompt("Enter the name of the Auditor to assign:");
     if (!auditorName) return;
 
@@ -74,6 +79,7 @@ export default function ReportsPage() {
   };
 
   const handleMarkResolved = async () => {
+    if (!canModerateReports) return;
     try {
       const reportId = selectedReport.id || selectedReport.report_id;
       
@@ -340,28 +346,34 @@ export default function ReportsPage() {
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-700 leading-relaxed">"{selectedReport.description}"</div>
               </div>
 
-              <div className="bg-slate-900 p-5 rounded-xl text-white">
-                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-emerald-500" /> Admin Action Required</h3>
-                <p className="text-xs text-slate-400 mb-4">Current Status: <span className="font-semibold text-white">{selectedReport.status}</span></p>
-                <div className="grid grid-cols-2 gap-2">
-                  
-                  <button 
-                    onClick={handleAssignAuditor} 
-                    disabled={selectedReport.status === "Resolved"} 
-                    className="py-2 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition text-center border border-slate-700"
-                  >
-                    {selectedReport.auditor ? "Reassign Auditor" : "Assign Auditor"}
-                  </button>
-                  
-                  <button 
-                    onClick={handleMarkResolved} 
-                    disabled={selectedReport.status === "Resolved"} 
-                    className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition text-center"
-                  >
-                    Mark Resolved
-                  </button>
+              {canModerateReports ? (
+                <div className="bg-slate-900 p-5 rounded-xl text-white">
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-emerald-500" /> Admin Action Required</h3>
+                  <p className="text-xs text-slate-400 mb-4">Current Status: <span className="font-semibold text-white">{selectedReport.status}</span></p>
+                  <div className="grid grid-cols-2 gap-2">
+                    
+                    <button 
+                      onClick={handleAssignAuditor} 
+                      disabled={selectedReport.status === "Resolved"} 
+                      className="py-2 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition text-center border border-slate-700"
+                    >
+                      {selectedReport.auditor ? "Reassign Auditor" : "Assign Auditor"}
+                    </button>
+                    
+                    <button 
+                      onClick={handleMarkResolved} 
+                      disabled={selectedReport.status === "Resolved"} 
+                      className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition text-center"
+                    >
+                      Mark Resolved
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 text-slate-600 text-sm">
+                  Read-only access. Moderation actions are limited to Super Admins and Moderators.
+                </div>
+              )}
             </div>
           </div>
         </div>

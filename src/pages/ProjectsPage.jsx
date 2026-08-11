@@ -3,9 +3,13 @@ import { Plus, Search, MoreVertical, AlertTriangle, CheckCircle2, Clock, X, Edit
 import { useNavigate } from "react-router-dom";
 import api from '../api';
 import { generatePDF } from '../utils/generatePDF';
+import { useAuth } from "../context/AuthContext";
+import { hasAnyRole } from "../utils/rbac";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
+  const { role } = useAuth();
+  const canManageProjects = hasAnyRole(role, ["Super Admin", "Project Manager"]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false); 
@@ -29,6 +33,7 @@ export default function ProjectsPage() {
   const [editingId, setEditingId] = useState(null);
 
   const handleEditProject = (project, e) => {
+    if (!canManageProjects) return;
     e.stopPropagation(); 
     setEditingId(project.id);
     setFormData({
@@ -44,6 +49,7 @@ export default function ProjectsPage() {
   };
 
   const handleDeleteProject = async (id, e) => {
+    if (!canManageProjects) return;
     e.stopPropagation(); 
     if (window.confirm("Are you sure you want to permanently delete this project?")) {
       try {
@@ -203,9 +209,11 @@ export default function ProjectsPage() {
           <button onClick={handleExportPDF} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition shadow-sm flex items-center gap-2">
             <Download className="w-4 h-4" /> Export PDF
           </button>
-          <button onClick={() => { setEditingId(null); setFormData({ name: "", county_id: "", constituency_id: "", budget: "", lat: "", lng: "" }); setConstituenciesList([]); setIsModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm">
-            <Plus className="w-4 h-4" /> Add New Project
-          </button>
+          {canManageProjects && (
+            <button onClick={() => { setEditingId(null); setFormData({ name: "", county_id: "", constituency_id: "", budget: "", lat: "", lng: "" }); setConstituenciesList([]); setIsModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm">
+              <Plus className="w-4 h-4" /> Add New Project
+            </button>
+          )}
         </div>
       </div>
 
@@ -262,14 +270,18 @@ export default function ProjectsPage() {
                       <td className="px-6 py-4 text-slate-600">{project.county}</td>
                       <td className="px-6 py-4">{getStatusBadge(project.status)}</td>
                       <td className="px-6 py-4 text-right">
-                        <button onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === project.id ? null : project.id); }} className="text-slate-400 hover:text-slate-900 p-1 rounded">
-                          <MoreVertical className="w-5 h-5" />
-                        </button>
-                        {activeMenuId === project.id && (
-                          <div className="absolute right-8 top-10 w-36 bg-white border border-slate-200 shadow-lg rounded-xl overflow-hidden z-10">
-                            <button onClick={(e) => handleEditProject(project, e)} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Edit className="w-4 h-4 text-slate-400" /> Edit</button>
-                            <button onClick={(e) => handleDeleteProject(project.id, e)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-slate-100"><Trash2 className="w-4 h-4 text-red-400" /> Delete</button>
-                          </div>
+                        {canManageProjects && (
+                          <>
+                            <button onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === project.id ? null : project.id); }} className="text-slate-400 hover:text-slate-900 p-1 rounded">
+                              <MoreVertical className="w-5 h-5" />
+                            </button>
+                            {activeMenuId === project.id && (
+                              <div className="absolute right-8 top-10 w-36 bg-white border border-slate-200 shadow-lg rounded-xl overflow-hidden z-10">
+                                <button onClick={(e) => handleEditProject(project, e)} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Edit className="w-4 h-4 text-slate-400" /> Edit</button>
+                                <button onClick={(e) => handleDeleteProject(project.id, e)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-slate-100"><Trash2 className="w-4 h-4 text-red-400" /> Delete</button>
+                              </div>
+                            )}
+                          </>
                         )}
                       </td>
                     </tr>

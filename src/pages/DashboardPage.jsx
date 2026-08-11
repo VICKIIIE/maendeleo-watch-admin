@@ -21,7 +21,7 @@ export default function DashboardPage() {
         // allSettled will not reject the whole block if one request 404s
         const results = await Promise.allSettled([
           api.get('/projects'),
-          api.get('/reports'),
+          api.get('/audits'),
           api.get('/users'),
           api.get('/logs?limit=5')
         ]);
@@ -47,7 +47,7 @@ export default function DashboardPage() {
         // Log which specific endpoints failed to the console to help you debug
         results.forEach((res, index) => {
           if (res.status === 'rejected') {
-            const endpoints = ['/projects', '/reports', '/users', '/logs'];
+            const endpoints = ['/projects', '/audits', '/users', '/logs'];
             console.warn(`API Error on ${endpoints[index]}:`, res.reason.message);
           }
         });

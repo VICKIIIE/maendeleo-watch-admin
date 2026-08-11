@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Download } from 'lucide-react';
+import api from '../api';
 import { generatePDF } from '../utils/generatePDF';
+import { useAuth } from '../context/AuthContext';
+import { hasAnyRole } from '../utils/rbac';
 
 
 const ModerationPage = () => {
+    const { role } = useAuth();
+    const canModerate = hasAnyRole(role, ["Super Admin", "Moderator"]);
     const [pendingAudits, setPendingAudits] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -13,9 +18,8 @@ const ModerationPage = () => {
 
     const fetchPendingAudits = async () => {
         try {
-
-            const response = await fetch('http://localhost:3000/api/audits/pending');
-            const result = await response.json();
+            const response = await api.get('/audits/pending');
+            const result = response.data;
             if (result.success) {
                 setPendingAudits(result.data);
             }
@@ -28,17 +32,11 @@ const ModerationPage = () => {
 
     const handleUpdateStatus = async (auditId, newStatus) => {
         try {
-
-            const response = await fetch(`http://localhost:3000/api/audits/${auditId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-
-                body: JSON.stringify({ verification_status: newStatus }),
+            const response = await api.put(`/audits/${auditId}`, {
+                verification_status: newStatus,
             });
 
-            const result = await response.json();
+            const result = response.data;
 
             if (result.success) {
                 setPendingAudits((prevAudits) => 
@@ -113,18 +111,24 @@ const ModerationPage = () => {
                             </div>
 
                             <div className="flex space-x-3 w-full md:w-auto">
-                                <button 
-                                    onClick={() => handleUpdateStatus(audit.id, 'Approved')}
-                                    className="flex-1 md:flex-none bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-md font-medium transition-colors"
-                                >
-                                    Approve
-                                </button>
-                                <button 
-                                    onClick={() => handleUpdateStatus(audit.id, 'Rejected')}
-                                    className="flex-1 md:flex-none bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-md font-medium transition-colors"
-                                >
-                                    Reject
-                                </button>
+                                {canModerate ? (
+                                    <>
+                                        <button 
+                                            onClick={() => handleUpdateStatus(audit.id, 'Approved')}
+                                            className="flex-1 md:flex-none bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-md font-medium transition-colors"
+                                        >
+                                            Approve
+                                        </button>
+                                        <button 
+                                            onClick={() => handleUpdateStatus(audit.id, 'Rejected')}
+                                            className="flex-1 md:flex-none bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-md font-medium transition-colors"
+                                        >
+                                            Reject
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="text-sm text-gray-500">Read-only access</div>
+                                )}
                             </div>
                         </div>
                     ))}

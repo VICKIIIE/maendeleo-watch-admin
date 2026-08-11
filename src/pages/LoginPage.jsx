@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../config/firebase";
+import api from "../api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -19,7 +20,25 @@ export default function LoginPage() {
     setError("");
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const token = await credential.user.getIdToken(true);
+
+      const syncResponse = await api.post(
+        "/auth/sync",
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const syncedRole = syncResponse?.data?.data?.role;
+
+      if (syncedRole) {
+        localStorage.setItem("maendeleo-role", syncedRole);
+      }
+
       navigate("/"); 
     } catch (err) {
       console.error("Firebase Login Error:", err.code);

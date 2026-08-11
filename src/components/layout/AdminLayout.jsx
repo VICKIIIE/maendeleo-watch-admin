@@ -3,10 +3,13 @@ import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import { FolderKanban, LayoutDashboard, FileText, Users, Settings, LogOut, ShieldCheck } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
+import { useAuth } from "../../context/AuthContext";
+import { hasAnyRole, normalizeRole } from "../../utils/rbac";
 
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation(); 
+  const { role } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -19,11 +22,15 @@ export default function AdminLayout() {
 
   const navLinks = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
-    { name: "Projects", path: "/projects", icon: FolderKanban },
-    { name: "Reports", path: "/reports", icon: FileText },
-    { name: "Users", path: "/users", icon: Users },
-    { name: "Moderation", path: "/moderation", icon: ShieldCheck },
+    { name: "Projects", path: "/projects", icon: FolderKanban, allowedRoles: ["Super Admin", "Project Manager", "Field Agent", "Investigator"] },
+    { name: "Reports", path: "/reports", icon: FileText, allowedRoles: ["Super Admin", "Project Manager", "Field Agent", "Moderator", "Investigator"] },
+    { name: "Users", path: "/users", icon: Users, allowedRoles: ["Super Admin"] },
+    { name: "Moderation", path: "/moderation", icon: ShieldCheck, allowedRoles: ["Super Admin", "Moderator", "Investigator"] },
   ];
+
+  const visibleNavLinks = navLinks.filter((link) => hasAnyRole(role, link.allowedRoles || []));
+  const normalizedRole = normalizeRole(role) || "Guest";
+  const canAccessSettings = hasAnyRole(role, ["Super Admin"]);
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -36,7 +43,7 @@ export default function AdminLayout() {
         </div>
         
         <nav className="flex-1 p-4 space-y-2">
-          {navLinks.map((link) => {
+          {visibleNavLinks.map((link) => {
             const Icon = link.icon;
             const isActive = location.pathname === link.path; 
             
@@ -59,17 +66,19 @@ export default function AdminLayout() {
 
         {/* BOTTOM SIDEBAR ACTIONS */}
         <div className="p-4 border-t border-slate-800 space-y-2">
-          <Link 
-            to="/settings" 
-            className={`flex items-center space-x-3 p-3 rounded-lg transition-all ${
-              location.pathname === '/settings' 
-                ? 'bg-emerald-600 text-white shadow-md' 
-                : 'hover:bg-slate-800 text-slate-300'
-            }`}
-          >
-            <Settings className={`w-5 h-5 ${location.pathname === '/settings' ? 'text-white' : 'text-slate-400'}`} />
-            <span>Settings</span>
-          </Link>
+          {canAccessSettings && (
+            <Link 
+              to="/settings" 
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-all ${
+                location.pathname === '/settings' 
+                  ? 'bg-emerald-600 text-white shadow-md' 
+                  : 'hover:bg-slate-800 text-slate-300'
+              }`}
+            >
+              <Settings className={`w-5 h-5 ${location.pathname === '/settings' ? 'text-white' : 'text-slate-400'}`} />
+              <span>Settings</span>
+            </Link>
+          )}
           
           <button 
             onClick={handleLogout}
@@ -90,9 +99,9 @@ export default function AdminLayout() {
           </h1>
           
           <div className="flex items-center space-x-4">
-            <span className="text-sm text-slate-500">System Admin</span>
+            <span className="text-sm text-slate-500">{normalizedRole}</span>
             <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold border border-emerald-200">
-              SA
+              {normalizedRole.substring(0, 2).toUpperCase()}
             </div>
           </div>
         </header>
